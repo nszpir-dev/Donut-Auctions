@@ -178,7 +178,7 @@ function renderCard(state, opts){
       <div class="item-name">${escapeHtml(state.item)}</div>
       <div class="bid-row">
         <div class="bidder">Top Bidder<strong>${escapeHtml(state.bidder)}</strong></div>
-        <div class="bid-amount">${state.bid.toLocaleString()} <span>coins</span></div>
+        <div class="bid-amount">$${state.bid.toLocaleString()}</div>
       </div>
       <div class="timer-wrap">
         <div class="timer-bar"><div class="fill" style="width:${(pct*100).toFixed(2)}%; background:${barColor(pct)};"></div><div class="segs">${segs}</div></div>
@@ -269,7 +269,7 @@ else{
             <h2>Top Bid</h2>
             <div class="row2">
               <div><label>Bidder name</label><input id="bidderInput" type="text" placeholder="IGN"></div>
-              <div><label>Bid amount (coins)</label><input id="bidInput" type="number" min="0" placeholder="0"></div>
+              <div><label>Bid amount ($)</label><input id="bidInput" type="number" min="0" placeholder="0"></div>
             </div>
             <div class="btn-row"><button class="btn-primary" id="setBidBtn">Set As Top Bid</button></div>
           </div>
