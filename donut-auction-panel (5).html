@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Donut SMP Auction Panel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#120B10; --panel:#1D1420; --panel-edge:#3A2A38;
+    --cream:#F5EDE3; --cream-dim:#C7B9BE;
+    --glaze:#E8A94C; --glaze-2:#E85D8A;
+    --safe:#7CC576; --warn:#E8C34C; --danger:#D9484B;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;min-height:100%;background:transparent;font-family:'Inter',sans-serif;color:var(--cream);}
+  body.control-mode{background:var(--ink);}
+  .card{width:520px;background:linear-gradient(160deg,#221726 0%,#180F1B 100%);border:2px solid var(--panel-edge);border-radius:14px;padding:20px 24px;box-shadow:0 12px 40px rgba(0,0,0,.45);position:relative;overflow:hidden;}
+  .card::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 85% -10%, rgba(232,169,76,.18), transparent 55%);pointer-events:none;}
+  .eyebrow{display:flex;align-items:center;gap:8px;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:.14em;font-size:13px;text-transform:uppercase;color:var(--glaze);}
+  .eyebrow .dot{width:8px;height:8px;border-radius:50%;background:var(--danger);box-shadow:0 0 8px var(--danger);animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .item-name{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:28px;margin:6px 0 14px;color:var(--cream);line-height:1.1;text-shadow:0 2px 10px rgba(0,0,0,.4);}
+  .bid-row{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;}
+  .bidder{font-size:14px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.08em;}
+  .bidder strong{display:block;font-family:'Rajdhani',sans-serif;font-size:20px;color:var(--cream);font-weight:600;letter-spacing:0;text-transform:none;margin-top:2px;}
+  .bid-amount{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:46px;background:linear-gradient(90deg,var(--glaze),var(--glaze-2));-webkit-background-clip:text;background-clip:text;color:transparent;white-space:nowrap;}
+  .bid-amount span{font-size:20px;opacity:.75;-webkit-text-fill-color:var(--cream-dim);}
+  .timer-wrap{display:flex;align-items:center;gap:12px;}
+  .timer-bar{flex:1;height:14px;border-radius:7px;background:#0E080F;border:1px solid var(--panel-edge);overflow:hidden;position:relative;}
+  .timer-bar .fill{height:100%;border-radius:6px;transition:width .3s linear, background-color .4s;}
+  .timer-bar .segs{position:absolute;inset:0;display:flex;}
+  .timer-bar .segs i{flex:1;border-right:1px solid rgba(0,0,0,.35);}
+  .timer-label{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:20px;min-width:64px;text-align:right;}
+  .synced-tag{position:absolute;bottom:8px;right:12px;font-size:10px;letter-spacing:.08em;color:var(--cream-dim);opacity:.55;font-family:'Rajdhani',sans-serif;text-transform:uppercase;}
+  .wrap{max-width:960px;margin:0 auto;padding:32px 20px 60px;}
+  h1{font-family:'Rajdhani',sans-serif;font-size:22px;letter-spacing:.06em;margin:0 0 4px;}
+  .sub{color:var(--cream-dim);font-size:13px;margin-bottom:28px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;align-items:start;}
+  .panel{background:var(--panel);border:1px solid var(--panel-edge);border-radius:12px;padding:18px 20px;}
+  .panel h2{font-family:'Rajdhani',sans-serif;font-size:15px;letter-spacing:.1em;text-transform:uppercase;color:var(--glaze);margin:0 0 14px;}
+  label{display:block;font-size:12px;color:var(--cream-dim);margin-bottom:5px;margin-top:12px;}
+  label:first-of-type{margin-top:0;}
+  input[type=text], input[type=number], input[type=password]{width:100%;background:#120B10;border:1px solid var(--panel-edge);border-radius:8px;color:var(--cream);font-family:'Inter',sans-serif;font-size:14px;padding:9px 10px;outline:none;}
+  input:focus{border-color:var(--glaze);}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  button{font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:.05em;text-transform:uppercase;font-size:13px;border:none;border-radius:8px;padding:10px 14px;cursor:pointer;transition:transform .08s ease, opacity .15s;}
+  button:active{transform:scale(.96);}
+  .btn-primary{background:linear-gradient(90deg,var(--glaze),var(--glaze-2));color:#1a0f14;}
+  .btn-secondary{background:#2C2030;color:var(--cream);border:1px solid var(--panel-edge);}
+  .btn-danger{background:var(--danger);color:#fff;}
+  .btn-copy{background:#2C2030;color:var(--glaze);border:1px solid var(--glaze);font-size:11px;padding:6px 10px;}
+  .btn-row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+  .btn-row button{flex:1;min-width:90px;}
+  .preview-holder{display:flex;justify-content:center;padding:26px 10px;background:#0E080F;border-radius:12px;border:1px solid var(--panel-edge);}
+  .preview-holder .card{width:100%;max-width:460px;}
+  .hint{font-size:12px;color:var(--cream-dim);line-height:1.5;margin-top:10px;}
+  .hint a{color:var(--glaze);}
+  .url-row{display:flex;gap:8px;align-items:center;margin-top:8px;}
+  .obs-url{flex:1;background:#0E080F;border:1px dashed var(--panel-edge);border-radius:8px;padding:8px 10px;font-size:12px;color:var(--glaze);word-break:break-all;font-family:monospace;}
+  .status{font-size:12px;margin-top:10px;color:var(--cream-dim);}
+  .status.ok{color:var(--safe);}
+  .status.err{color:var(--danger);}
+  .setup-wrap{max-width:520px;margin:60px auto;padding:0 20px;}
+  ol{color:var(--cream-dim);font-size:13px;line-height:1.9;padding-left:20px;}
+  ol a{color:var(--glaze);}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const params = new URLSearchParams(location.search);
+const isOverlay = params.get('view') === 'overlay';
+document.body.className = isOverlay ? 'overlay-mode' : 'control-mode';
+
+const KV_BASE = 'https://api.jsonbin.io/v3/b';
+
+function getStoredKey(){
+  try{ return localStorage.getItem('donutAuctionApiKey') || ''; }catch(e){ return ''; }
+}
+function setStoredKey(k){
+  try{ localStorage.setItem('donutAuctionApiKey', k); }catch(e){}
+}
+
+async function createBin(apiKey){
+  const res = await fetch(KV_BASE, {
+    method: 'POST',
+    headers: {'Content-Type':'application/json', 'X-Master-Key': apiKey},
+    body: JSON.stringify({entries: []})
+  });
+  if(!res.ok){
+    throw new Error('Could not create storage (status ' + res.status + '). Double-check your Master Key was copied correctly.');
+  }
+  const data = await res.json();
+  const id = data.metadata && data.metadata.id;
+  if(!id) throw new Error('Unexpected response from storage service.');
+  return id;
+}
+
+async function loadLog(bucket, apiKey){
+  try{
+    const res = await fetch(`${KV_BASE}/${bucket}/latest`, {headers:{'X-Master-Key': apiKey}, cache:'no-store'});
+    if(!res.ok) return [];
+    const data = await res.json();
+    const arr = data.record && data.record.entries;
+    return Array.isArray(arr) ? arr : [];
+  }catch(e){ return []; }
+}
+
+async function saveLog(bucket, apiKey, log){
+  try{
+    const res = await fetch(`${KV_BASE}/${bucket}`, {
+      method:'PUT',
+      headers:{'Content-Type':'application/json', 'X-Master-Key': apiKey},
+      body: JSON.stringify({entries: log})
+    });
+    return res.ok;
+  }catch(e){ return false; }
+}
+
+async function pushSnapshot(bucket, apiKey, state){
+  const log = await loadLog(bucket, apiKey);
+  log.push({...state, ts: Date.now()});
+  const cutoff = Date.now() - 15*60*1000;
+  const pruned = log.filter(s => s.ts >= cutoff).slice(-200);
+  const ok = await saveLog(bucket, apiKey, pruned);
+  return {log: pruned, ok};
+}
+
+function defaultState(){
+  return { ts: Date.now(), item: 'No item yet', bidder: '—', bid: 0, delaySeconds: 0,
+    timerRunning: false, timerEndAt: null, timerRemainingMs: 60000, timerTotalMs: 60000 };
+}
+
+function pickDelayedSnapshot(log){
+  if(!log.length) return defaultState();
+  const delay = log[log.length-1].delaySeconds || 0;
+  const cutoff = Date.now() - delay*1000;
+  let chosen = log[0];
+  for(const s of log){ if(s.ts <= cutoff) chosen = s; else break; }
+  return chosen;
+}
+
+function remainingMs(state, now){
+  if(state.timerRunning && state.timerEndAt) return Math.max(0, state.timerEndAt - now);
+  return Math.max(0, state.timerRemainingMs);
+}
+
+function fmt(ms){
+  const total = Math.ceil(ms/1000);
+  const m = Math.floor(total/60), s = total%60;
+  return String(m).padStart(2,'0') + ':' + String(s).padStart(2,'0');
+}
+
+function barColor(pct){
+  const cs = getComputedStyle(document.documentElement);
+  if(pct > 0.5) return cs.getPropertyValue('--safe');
+  if(pct > 0.2) return cs.getPropertyValue('--warn');
+  return cs.getPropertyValue('--danger');
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderCard(state, opts){
+  opts = opts || {};
+  const now = Date.now();
+  const rem = remainingMs(state, now);
+  const total = state.timerTotalMs || 1;
+  const pct = Math.max(0, Math.min(1, rem/total));
+  let segs = ''; for(let i=0;i<20;i++) segs += '<i></i>';
+  const tag = opts.showSync ? `<div class="synced-tag">delay ${state.delaySeconds||0}s</div>` : '';
+  return `
+    <div class="card">
+      <div class="eyebrow"><span class="dot"></span> Donut SMP &middot; Live Auction</div>
+      <div class="item-name">${escapeHtml(state.item)}</div>
+      <div class="bid-row">
+        <div class="bidder">Top Bidder<strong>${escapeHtml(state.bidder)}</strong></div>
+        <div class="bid-amount">${state.bid.toLocaleString()} <span>coins</span></div>
+      </div>
+      <div class="timer-wrap">
+        <div class="timer-bar"><div class="fill" style="width:${(pct*100).toFixed(2)}%; background:${barColor(pct)};"></div><div class="segs">${segs}</div></div>
+        <div class="timer-label">${fmt(rem)}</div>
+      </div>
+      ${tag}
+    </div>`;
+}
+
+/* ================= OVERLAY MODE ================= */
+if(isOverlay){
+  const app = document.getElementById('app');
+  app.style.display='flex'; app.style.justifyContent='center'; app.style.alignItems='flex-start'; app.style.padding='24px';
+  const bucket = params.get('room');
+  const apiKey = params.get('key');
+  if(!bucket || !apiKey){
+    app.innerHTML = '<div style="color:#F5EDE3;font-family:sans-serif;">This overlay link is incomplete. Copy the exact link from the "Overlay Preview" box on your control panel.</div>';
+  }else{
+    async function tick(){
+      const log = await loadLog(bucket, apiKey);
+      app.innerHTML = renderCard(pickDelayedSnapshot(log), {showSync:false});
+    }
+    tick();
+    setInterval(tick, 1000);
+  }
+}
+/* ================= CONTROL MODE ================= */
+else{
+  const app = document.getElementById('app');
+  let liveState = defaultState();
+  let log = [];
+  let bucket = params.get('room');
+  let apiKey = params.get('key') || getStoredKey();
+
+  function renderSetup(errorMsg){
+    app.innerHTML = `
+      <div class="setup-wrap">
+        <h1>Donut SMP &middot; Auction Control</h1>
+        <div class="panel">
+          <h2>One-time setup</h2>
+          <div class="hint">This panel stores its live state on jsonbin.io (free, no credit card) so your OBS/TikTok overlay can read it instantly. You only need to do this once.</div>
+          <ol>
+            <li>Go to <a href="https://jsonbin.io/login" target="_blank" rel="noopener">jsonbin.io</a> and create a free account.</li>
+            <li>Open your dashboard and copy your <strong>X-MASTER-KEY</strong>.</li>
+            <li>Paste it below.</li>
+          </ol>
+          <label>X-MASTER-KEY</label>
+          <input id="keyInput" type="password" placeholder="Paste your Master Key here">
+          <div class="btn-row"><button class="btn-primary" id="connectBtn">Connect</button></div>
+          ${errorMsg ? `<div class="status err">${escapeHtml(errorMsg)}</div>` : ''}
+        </div>
+      </div>`;
+    document.getElementById('connectBtn').onclick = async () => {
+      const key = document.getElementById('keyInput').value.trim();
+      if(!key) return;
+      try{
+        const id = await createBin(key);
+        setStoredKey(key);
+        params.set('room', id);
+        params.set('key', key);
+        location.search = params.toString();
+      }catch(e){
+        renderSetup(e.message);
+      }
+    };
+  }
+
+  if(!bucket || !apiKey){
+    renderSetup();
+  }else{
+    buildControlUI();
+  }
+
+  function buildControlUI(){
+  app.innerHTML = `
+    <div class="wrap">
+      <h1>Donut SMP &middot; Auction Control</h1>
+      <div class="sub">Update this panel manually as bids come in on the server. The overlay refreshes on its own.</div>
+      <div class="grid">
+        <div>
+          <div class="panel">
+            <h2>Item</h2>
+            <label>Item being auctioned</label>
+            <input id="itemInput" type="text" placeholder="e.g. Netherite Sword [Sharp V]">
+            <div class="btn-row"><button class="btn-secondary" id="newAuctionBtn">Start New Item</button></div>
+          </div>
+          <div class="panel" style="margin-top:16px;">
+            <h2>Top Bid</h2>
+            <div class="row2">
+              <div><label>Bidder name</label><input id="bidderInput" type="text" placeholder="IGN"></div>
+              <div><label>Bid amount (coins)</label><input id="bidInput" type="number" min="0" placeholder="0"></div>
+            </div>
+            <div class="btn-row"><button class="btn-primary" id="setBidBtn">Set As Top Bid</button></div>
+          </div>
+          <div class="panel" style="margin-top:16px;">
+            <h2>Timer</h2>
+            <div class="row2">
+              <label style="margin-top:0;">Minutes<input id="minInput" type="number" min="0" value="1"></label>
+              <label style="margin-top:0;">Seconds<input id="secInput" type="number" min="0" max="59" value="0"></label>
+            </div>
+            <div class="btn-row">
+              <button class="btn-secondary" id="setDurationBtn">Set Duration</button>
+              <button class="btn-primary" id="startBtn">Start</button>
+              <button class="btn-secondary" id="pauseBtn">Pause</button>
+              <button class="btn-danger" id="resetBtn">Reset</button>
+            </div>
+            <label>Broadcast delay (seconds)</label>
+            <input id="delayInput" type="number" min="0" value="0">
+            <div class="hint">Match this to your TikTok/YouTube stream delay so the overlay only shows a bid once viewers actually see it happen.</div>
+          </div>
+        </div>
+        <div>
+          <div class="panel">
+            <h2>Overlay Preview</h2>
+            <div class="preview-holder" id="previewHolder"></div>
+            <div class="hint">Paste this exact link into OBS (Browser Source) or TikTok LIVE Studio (add web/browser layer):</div>
+            <div class="url-row"><div class="obs-url" id="overlayUrl">generating link…</div><button class="btn-copy" id="copyBtn">Copy</button></div>
+            <div class="status" id="statusMsg"></div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+
+  const el = id => document.getElementById(id);
+
+  async function init(){
+    log = await loadLog(bucket, apiKey);
+    if(log.length) liveState = {...log[log.length-1]};
+    el('itemInput').value = liveState.item;
+    el('bidderInput').value = liveState.bidder === '—' ? '' : liveState.bidder;
+    el('bidInput').value = liveState.bid || '';
+    el('delayInput').value = liveState.delaySeconds || 0;
+    const totalSec = Math.round((liveState.timerTotalMs||60000)/1000);
+    el('minInput').value = Math.floor(totalSec/60);
+    el('secInput').value = totalSec%60;
+
+    const overlayUrl = location.origin + location.pathname + '?view=overlay&room=' + encodeURIComponent(bucket) + '&key=' + encodeURIComponent(apiKey);
+    el('overlayUrl').textContent = overlayUrl;
+    el('copyBtn').onclick = () => { navigator.clipboard.writeText(overlayUrl); el('statusMsg').textContent='Link copied.'; el('statusMsg').className='status ok'; };
+
+    renderPreview();
+  }
+
+  function renderPreview(){
+    el('previewHolder').innerHTML = renderCard(pickDelayedSnapshot(log), {showSync:true});
+  }
+
+  async function commit(){
+    const {log: newLog, ok} = await pushSnapshot(bucket, apiKey, liveState);
+    log = newLog;
+    renderPreview();
+    el('statusMsg').textContent = ok ? 'Synced.' : 'Could not reach sync server — check your connection.';
+    el('statusMsg').className = 'status ' + (ok ? 'ok' : 'err');
+  }
+
+  el('newAuctionBtn').onclick = () => {
+    liveState.item = el('itemInput').value.trim() || 'Untitled Item';
+    liveState.bidder = '—'; liveState.bid = 0;
+    liveState.timerRunning = false; liveState.timerEndAt = null;
+    liveState.timerRemainingMs = liveState.timerTotalMs;
+    el('bidderInput').value=''; el('bidInput').value='';
+    commit();
+  };
+  el('setBidBtn').onclick = () => {
+    liveState.bidder = el('bidderInput').value.trim() || 'Anonymous';
+    liveState.bid = Number(el('bidInput').value) || 0;
+    commit();
+  };
+  el('setDurationBtn').onclick = () => {
+    const mins = Number(el('minInput').value)||0, secs = Number(el('secInput').value)||0;
+    const totalMs = Math.max(1000, (mins*60+secs)*1000);
+    liveState.timerTotalMs = totalMs; liveState.timerRemainingMs = totalMs;
+    liveState.timerRunning = false; liveState.timerEndAt = null;
+    commit();
+  };
+  el('startBtn').onclick = () => {
+    const now = Date.now(); const rem = remainingMs(liveState, now);
+    if(rem <= 0) return;
+    liveState.timerEndAt = now + rem; liveState.timerRunning = true;
+    commit();
+  };
+  el('pauseBtn').onclick = () => {
+    liveState.timerRemainingMs = remainingMs(liveState, Date.now());
+    liveState.timerRunning = false; liveState.timerEndAt = null;
+    commit();
+  };
+  el('resetBtn').onclick = () => {
+    liveState.timerRunning = false; liveState.timerEndAt = null;
+    liveState.timerRemainingMs = liveState.timerTotalMs;
+    commit();
+  };
+  el('delayInput').onchange = () => {
+    liveState.delaySeconds = Math.max(0, Number(el('delayInput').value)||0);
+    commit();
+  };
+
+  init();
+  setInterval(renderPreview, 1000);
+  }
+}
+</script>
+</body>
+</html>
