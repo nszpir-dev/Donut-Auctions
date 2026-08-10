@@ -160,6 +160,16 @@ function barColor(pct){
   return cs.getPropertyValue('--danger');
 }
 
+function formatAmount(n){
+  n = Number(n) || 0;
+  const abs = Math.abs(n);
+  const trim = (v) => v.toFixed(1).replace(/\.0$/, '');
+  if(abs >= 1e9) return trim(n/1e9) + 'B';
+  if(abs >= 1e6) return trim(n/1e6) + 'M';
+  if(abs >= 1e3) return trim(n/1e3) + 'K';
+  return n.toLocaleString();
+}
+
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
@@ -178,7 +188,7 @@ function renderCard(state, opts){
       <div class="item-name">${escapeHtml(state.item)}</div>
       <div class="bid-row">
         <div class="bidder">Top Bidder<strong>${escapeHtml(state.bidder)}</strong></div>
-        <div class="bid-amount">$${state.bid.toLocaleString()}</div>
+        <div class="bid-amount">$${formatAmount(state.bid)}</div>
       </div>
       <div class="timer-wrap">
         <div class="timer-bar"><div class="fill" style="width:${(pct*100).toFixed(2)}%; background:${barColor(pct)};"></div><div class="segs">${segs}</div></div>
