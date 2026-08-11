@@ -21,7 +21,8 @@
   .eyebrow{display:flex;align-items:center;gap:8px;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:.14em;font-size:13px;text-transform:uppercase;color:var(--glaze);}
   .eyebrow .dot{width:8px;height:8px;border-radius:50%;background:var(--danger);box-shadow:0 0 8px var(--danger);animation:pulse 1.4s infinite;}
   @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
-  .item-name{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:28px;margin:6px 0 14px;color:var(--cream);line-height:1.1;text-shadow:0 2px 10px rgba(0,0,0,.4);}
+  .item-name{font-family:'Rajdhani',sans-serif;font-weight:700;font-size:28px;margin:6px 0 4px;color:var(--cream);line-height:1.1;text-shadow:0 2px 10px rgba(0,0,0,.4);}
+  .item-value{font-size:13px;color:var(--cream-dim);margin-bottom:14px;letter-spacing:.03em;}
   .bid-row{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:16px;}
   .bidder{font-size:14px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.08em;}
   .bidder strong{display:block;font-family:'Rajdhani',sans-serif;font-size:20px;color:var(--cream);font-weight:600;letter-spacing:0;text-transform:none;margin-top:2px;}
@@ -151,7 +152,7 @@ async function pushSnapshot(token, state){
 }
 
 function defaultState(){
-  return { ts: Date.now(), item: 'No item yet', bidder: '—', bid: 0, delaySeconds: 0,
+  return { ts: Date.now(), item: 'No item yet', itemValue: 0, bidder: '—', bid: 0, delaySeconds: 0,
     timerRunning: false, timerEndAt: null, timerRemainingMs: 60000, timerTotalMs: 60000 };
 }
 
@@ -208,6 +209,7 @@ function renderCard(state, opts){
     <div class="card">
       <div class="eyebrow"><span class="dot"></span> Donut SMP &middot; Live Auction</div>
       <div class="item-name">${escapeHtml(state.item)}</div>
+      ${state.itemValue > 0 ? `<div class="item-value">Est. value: $${formatAmount(state.itemValue)}</div>` : ''}
       <div class="bid-row">
         <div class="bidder">Top Bidder<strong>${escapeHtml(state.bidder)}</strong></div>
         <div class="bid-amount">$${formatAmount(state.bid)}</div>
@@ -297,6 +299,8 @@ else{
             <h2>Item</h2>
             <label>Item being auctioned</label>
             <input id="itemInput" type="text" placeholder="e.g. Netherite Sword [Sharp V]">
+            <label>Estimated value ($, optional)</label>
+            <input id="itemValueInput" type="number" min="0" placeholder="0">
             <div class="btn-row"><button class="btn-secondary" id="newAuctionBtn">Start New Item</button></div>
           </div>
           <div class="panel" style="margin-top:16px;">
@@ -342,6 +346,7 @@ else{
     log = await loadLog(token);
     if(log.length) liveState = {...log[log.length-1]};
     el('itemInput').value = liveState.item;
+    el('itemValueInput').value = liveState.itemValue || '';
     el('bidderInput').value = liveState.bidder === '—' ? '' : liveState.bidder;
     el('bidInput').value = liveState.bid || '';
     el('delayInput').value = liveState.delaySeconds || 0;
@@ -370,6 +375,7 @@ else{
 
   el('newAuctionBtn').onclick = () => {
     liveState.item = el('itemInput').value.trim() || 'Untitled Item';
+    liveState.itemValue = Number(el('itemValueInput').value) || 0;
     liveState.bidder = '—'; liveState.bid = 0;
     liveState.timerRunning = false; liveState.timerEndAt = null;
     liveState.timerRemainingMs = liveState.timerTotalMs;
