@@ -209,7 +209,7 @@ function renderCard(state, opts){
     <div class="card">
       <div class="eyebrow"><span class="dot"></span> Donut SMP &middot; Live Auction</div>
       <div class="item-name">${escapeHtml(state.item)}</div>
-      ${state.itemValue > 0 ? `<div class="item-value">Est. value: $${formatAmount(state.itemValue)}</div>` : ''}
+      ${state.itemValue > 0 ? `<div class="item-value">Value: $${formatAmount(state.itemValue)}</div>` : ''}
       <div class="bid-row">
         <div class="bidder">Top Bidder<strong>${escapeHtml(state.bidder)}</strong></div>
         <div class="bid-amount">$${formatAmount(state.bid)}</div>
@@ -230,15 +230,33 @@ if(isOverlay){
     app.innerHTML = '<div style="color:#F5EDE3;font-family:sans-serif;">This overlay link is incomplete. Copy the exact link from the "Overlay Preview" box on your control panel.</div>';
   }else{
     let cachedLog = [];
+    let lastEtag = null;
     function render(){
       app.innerHTML = renderCard(pickDelayedSnapshot(cachedLog), {showSync:false});
     }
     async function fetchLoop(){
-      cachedLog = await loadLog(token);
+      try{
+        const headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json'};
+        if(lastEtag) headers['If-None-Match'] = lastEtag;
+        const res = await fetch(API_URL, {headers, cache:'no-store'});
+        if(res.status === 304){
+          // nothing changed since last check - doesn't count against the rate limit
+        }else if(res.status === 404){
+          cachedLog = []; lastEtag = null;
+        }else if(res.ok){
+          lastEtag = res.headers.get('etag');
+          const data = await res.json();
+          try{
+            const text = b64DecodeUnicode(data.content.replace(/\n/g, ''));
+            const parsed = JSON.parse(text);
+            cachedLog = Array.isArray(parsed.entries) ? parsed.entries : cachedLog;
+          }catch(e){}
+        }
+      }catch(e){}
       render();
     }
     fetchLoop();
-    setInterval(fetchLoop, 1000);
+    setInterval(fetchLoop, 500);
     setInterval(render, 1000);
   }
 }
