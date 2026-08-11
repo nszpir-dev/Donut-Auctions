@@ -74,58 +74,80 @@ const params = new URLSearchParams(location.search);
 const isOverlay = params.get('view') === 'overlay';
 document.body.className = isOverlay ? 'overlay-mode' : 'control-mode';
 
-const KV_BASE = 'https://api.jsonbin.io/v3/b';
+const pathParts = location.pathname.split('/').filter(Boolean);
+const REPO_OWNER = location.hostname.split('.')[0];
+const REPO_NAME = pathParts[0] || '';
+const STATE_PATH = 'state.json';
+const API_URL = `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/contents/${STATE_PATH}`;
 
-function getStoredKey(){
-  try{ return localStorage.getItem('donutAuctionApiKey') || ''; }catch(e){ return ''; }
+function getStoredToken(){
+  try{ return localStorage.getItem('donutAuctionGhToken') || ''; }catch(e){ return ''; }
 }
-function setStoredKey(k){
-  try{ localStorage.setItem('donutAuctionApiKey', k); }catch(e){}
+function setStoredToken(t){
+  try{ localStorage.setItem('donutAuctionGhToken', t); }catch(e){}
 }
 
-async function createBin(apiKey){
-  const res = await fetch(KV_BASE, {
-    method: 'POST',
-    headers: {'Content-Type':'application/json', 'X-Master-Key': apiKey},
-    body: JSON.stringify({entries: []})
+function b64EncodeUnicode(str){
+  return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (m, p1) => String.fromCharCode('0x' + p1)));
+}
+function b64DecodeUnicode(str){
+  return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+}
+
+async function ghGet(token){
+  const res = await fetch(API_URL, {
+    headers: {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json'},
+    cache: 'no-store'
+  });
+  if(res.status === 404) return {log: [], sha: null};
+  if(!res.ok) throw new Error('GitHub read failed (status ' + res.status + ')');
+  const data = await res.json();
+  let log = [];
+  try{
+    const text = b64DecodeUnicode(data.content.replace(/\n/g, ''));
+    const parsed = JSON.parse(text);
+    log = Array.isArray(parsed.entries) ? parsed.entries : [];
+  }catch(e){}
+  return {log, sha: data.sha};
+}
+
+async function ghPut(token, log, sha){
+  const body = {
+    message: 'update auction state',
+    content: b64EncodeUnicode(JSON.stringify({entries: log})),
+    branch: 'main'
+  };
+  if(sha) body.sha = sha;
+  const res = await fetch(API_URL, {
+    method: 'PUT',
+    headers: {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json', 'Content-Type':'application/json'},
+    body: JSON.stringify(body)
   });
   if(!res.ok){
-    throw new Error('Could not create storage (status ' + res.status + '). Double-check your Master Key was copied correctly.');
+    return {ok:false};
   }
   const data = await res.json();
-  const id = data.metadata && data.metadata.id;
-  if(!id) throw new Error('Unexpected response from storage service.');
-  return id;
+  return {ok:true, sha: data.content && data.content.sha};
 }
 
-async function loadLog(bucket, apiKey){
+async function loadLog(token){
   try{
-    const res = await fetch(`${KV_BASE}/${bucket}/latest`, {headers:{'X-Master-Key': apiKey}, cache:'no-store'});
-    if(!res.ok) return [];
-    const data = await res.json();
-    const arr = data.record && data.record.entries;
-    return Array.isArray(arr) ? arr : [];
+    const {log} = await ghGet(token);
+    return log;
   }catch(e){ return []; }
 }
 
-async function saveLog(bucket, apiKey, log){
+async function pushSnapshot(token, state){
   try{
-    const res = await fetch(`${KV_BASE}/${bucket}`, {
-      method:'PUT',
-      headers:{'Content-Type':'application/json', 'X-Master-Key': apiKey},
-      body: JSON.stringify({entries: log})
-    });
-    return res.ok;
-  }catch(e){ return false; }
-}
-
-async function pushSnapshot(bucket, apiKey, state){
-  const log = await loadLog(bucket, apiKey);
-  log.push({...state, ts: Date.now()});
-  const cutoff = Date.now() - 15*60*1000;
-  const pruned = log.filter(s => s.ts >= cutoff).slice(-200);
-  const ok = await saveLog(bucket, apiKey, pruned);
-  return {log: pruned, ok};
+    const {log, sha} = await ghGet(token);
+    log.push({...state, ts: Date.now()});
+    const cutoff = Date.now() - 15*60*1000;
+    const pruned = log.filter(s => s.ts >= cutoff).slice(-200);
+    const result = await ghPut(token, pruned, sha);
+    return {log: pruned, ok: result.ok};
+  }catch(e){
+    return {log: [], ok:false};
+  }
 }
 
 function defaultState(){
@@ -198,30 +220,26 @@ function renderCard(state, opts){
     </div>`;
 }
 
-/* ================= OVERLAY MODE ================= */
 if(isOverlay){
   const app = document.getElementById('app');
   app.style.display='flex'; app.style.justifyContent='center'; app.style.alignItems='flex-start'; app.style.padding='24px';
-  const bucket = params.get('room');
-  const apiKey = params.get('key');
-  if(!bucket || !apiKey){
+  const token = params.get('key');
+  if(!token){
     app.innerHTML = '<div style="color:#F5EDE3;font-family:sans-serif;">This overlay link is incomplete. Copy the exact link from the "Overlay Preview" box on your control panel.</div>';
   }else{
     async function tick(){
-      const log = await loadLog(bucket, apiKey);
+      const log = await loadLog(token);
       app.innerHTML = renderCard(pickDelayedSnapshot(log), {showSync:false});
     }
     tick();
-    setInterval(tick, 1000);
+    setInterval(tick, 2000);
   }
 }
-/* ================= CONTROL MODE ================= */
 else{
   const app = document.getElementById('app');
   let liveState = defaultState();
   let log = [];
-  let bucket = params.get('room');
-  let apiKey = params.get('key') || getStoredKey();
+  let token = params.get('key') || getStoredToken();
 
   function renderSetup(errorMsg){
     app.innerHTML = `
@@ -229,26 +247,27 @@ else{
         <h1>Donut SMP &middot; Auction Control</h1>
         <div class="panel">
           <h2>One-time setup</h2>
-          <div class="hint">This panel stores its live state on jsonbin.io (free, no credit card) so your OBS/TikTok overlay can read it instantly. You only need to do this once.</div>
+          <div class="hint">This panel stores its live state right in this GitHub repo, as a file called state.json, so your OBS/TikTok overlay can read it instantly.</div>
           <ol>
-            <li>Go to <a href="https://jsonbin.io/login" target="_blank" rel="noopener">jsonbin.io</a> and create a free account.</li>
-            <li>Open your dashboard and copy your <strong>X-MASTER-KEY</strong>.</li>
+            <li>Go to <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">github.com/settings/personal-access-tokens/new</a></li>
+            <li>Under "Repository access," choose "Only select repositories" and pick <strong>${escapeHtml(REPO_NAME)}</strong>.</li>
+            <li>Under "Permissions" &rarr; "Repository permissions," set <strong>Contents</strong> to <strong>Read and write</strong>.</li>
+            <li>Click "Generate token" and copy it.</li>
             <li>Paste it below.</li>
           </ol>
-          <label>X-MASTER-KEY</label>
-          <input id="keyInput" type="password" placeholder="Paste your Master Key here">
+          <label>Personal Access Token</label>
+          <input id="tokenInput" type="password" placeholder="Paste your token here (starts with github_pat_)">
           <div class="btn-row"><button class="btn-primary" id="connectBtn">Connect</button></div>
           ${errorMsg ? `<div class="status err">${escapeHtml(errorMsg)}</div>` : ''}
         </div>
       </div>`;
     document.getElementById('connectBtn').onclick = async () => {
-      const key = document.getElementById('keyInput').value.trim();
-      if(!key) return;
+      const t = document.getElementById('tokenInput').value.trim();
+      if(!t) return;
       try{
-        const id = await createBin(key);
-        setStoredKey(key);
-        params.set('room', id);
-        params.set('key', key);
+        await ghGet(t);
+        setStoredToken(t);
+        params.set('key', t);
         location.search = params.toString();
       }catch(e){
         renderSetup(e.message);
@@ -256,7 +275,7 @@ else{
     };
   }
 
-  if(!bucket || !apiKey){
+  if(!token){
     renderSetup();
   }else{
     buildControlUI();
@@ -304,7 +323,7 @@ else{
           <div class="panel">
             <h2>Overlay Preview</h2>
             <div class="preview-holder" id="previewHolder"></div>
-            <div class="hint">Paste this exact link into OBS (Browser Source) or TikTok LIVE Studio (add web/browser layer):</div>
+            <div class="hint">Paste this exact link into OBS (Browser Source) or TikTok LIVE Studio (add web/browser layer). Keep it private &mdash; it contains your access token:</div>
             <div class="url-row"><div class="obs-url" id="overlayUrl">generating link…</div><button class="btn-copy" id="copyBtn">Copy</button></div>
             <div class="status" id="statusMsg"></div>
           </div>
@@ -315,7 +334,7 @@ else{
   const el = id => document.getElementById(id);
 
   async function init(){
-    log = await loadLog(bucket, apiKey);
+    log = await loadLog(token);
     if(log.length) liveState = {...log[log.length-1]};
     el('itemInput').value = liveState.item;
     el('bidderInput').value = liveState.bidder === '—' ? '' : liveState.bidder;
@@ -325,7 +344,7 @@ else{
     el('minInput').value = Math.floor(totalSec/60);
     el('secInput').value = totalSec%60;
 
-    const overlayUrl = location.origin + location.pathname + '?view=overlay&room=' + encodeURIComponent(bucket) + '&key=' + encodeURIComponent(apiKey);
+    const overlayUrl = location.origin + location.pathname + '?view=overlay&key=' + encodeURIComponent(token);
     el('overlayUrl').textContent = overlayUrl;
     el('copyBtn').onclick = () => { navigator.clipboard.writeText(overlayUrl); el('statusMsg').textContent='Link copied.'; el('statusMsg').className='status ok'; };
 
@@ -337,7 +356,7 @@ else{
   }
 
   async function commit(){
-    const {log: newLog, ok} = await pushSnapshot(bucket, apiKey, liveState);
+    const {log: newLog, ok} = await pushSnapshot(token, liveState);
     log = newLog;
     renderPreview();
     el('statusMsg').textContent = ok ? 'Synced.' : 'Could not reach sync server — check your connection.';
