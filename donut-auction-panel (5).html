@@ -227,12 +227,17 @@ if(isOverlay){
   if(!token){
     app.innerHTML = '<div style="color:#F5EDE3;font-family:sans-serif;">This overlay link is incomplete. Copy the exact link from the "Overlay Preview" box on your control panel.</div>';
   }else{
-    async function tick(){
-      const log = await loadLog(token);
-      app.innerHTML = renderCard(pickDelayedSnapshot(log), {showSync:false});
+    let cachedLog = [];
+    function render(){
+      app.innerHTML = renderCard(pickDelayedSnapshot(cachedLog), {showSync:false});
     }
-    tick();
-    setInterval(tick, 2000);
+    async function fetchLoop(){
+      cachedLog = await loadLog(token);
+      render();
+    }
+    fetchLoop();
+    setInterval(fetchLoop, 3000);
+    setInterval(render, 1000);
   }
 }
 else{
